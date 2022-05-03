@@ -7,6 +7,7 @@ life_data <- read_csv("Life Expectancy Data.csv")
 #EXPLORE AND ANALYZE THE DATA
 View(life_data)
 summary(life_data)
+# data not included 
 
 # select my relevant varibles
 life_data_clean <- life_data %>%
@@ -106,7 +107,7 @@ library(lmtest)
 bptest(reg.fe, studentize = FALSE)
 
 # we want to get the robust standard errors
-coeftest(reg.fe, vcovHC, type = "HC0")
+coeftest(reg.fe, vcovHC, type = "HC1")
 
 # we can then run a regression with the robust standard errors
 
@@ -116,5 +117,5 @@ coeftest(reg.fe, vcovHC, type = "HC0")
 ##############################################################################################################################################
 #Two different regression models on countries that are developing and countries that are not developing 
 
-
+lfe.re <- felm(lifexp ~ GDP + Schooling + totalexp +adultmort + developing | Country + Year| 0 | Country, panel_life_data)
 
