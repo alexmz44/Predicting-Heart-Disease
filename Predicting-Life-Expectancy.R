@@ -1,4 +1,6 @@
 # Read in the data
+library(janitor)
+library(car)
 library(tidyverse)
 life_data <- read_csv("Life Expectancy Data.csv")
 
@@ -38,11 +40,14 @@ life_data <- life_data %>%
 life_data <- life_data %>%
   mutate(developing = ifelse(Status == "Developing", 1, 0)) %>%
   select(-Status)
+
+###################################################################################
 # now we have panel data, so it would be a good idea to make sure we treat it as such
 library(plm)
 
 panel_life_data <-  pdata.frame(life_data, index = c("Country", "Year"))
-
+panel_life_data <- panel_life_data %>%
+  select(-pop, -BMI)
 #check if the panel data is balanced and it is
 pdim(panel_life_data)
 View(panel_life_data)
@@ -50,4 +55,66 @@ View(panel_life_data)
 # we find that developing dummy variable does not vary over time 
 pvar(panel_life_data)
 
-# run a regression wiht the FE estimator
+# check the correlation plot of all the variables
+library(corrplot)
+data_cor_plot <-  panel_life_data %>%
+  keep(is.numeric) %>%
+  cor() %>%
+  corrplot()
+
+data_cor_plot
+# multicollinearity test
+vif(reg.ols)
+
+panel_life_data$yr <- factor(panel_life_data$Year)
+panel_life_data$ctry <- factor(panel_life_data$Country)
+#doing a fixed effect regression to see how a developing country is effected on life expectancy over time
+summary(plm(lifexp ~ GDP + Schooling + totalexp +adultmort + factor(Year) * developing, data = panel_life_data, model = "within"))
+
+
+# run a regression with the FE, RE, and OLS models
+reg.ols <- plm(lifexp ~ GDP + Schooling + totalexp  +adultmort + developing,index = c("Country", "Year"), data = panel_life_data, model = "pooling")
+
+reg.re <- plm(lifexp ~ GDP + Schooling + totalexp +adultmort + developing, index = c("Country", "Year"),data = panel_life_data, model = "random")
+
+reg.fe <- plm(lifexp ~ GDP + Schooling + totalexp +adultmort + developing, index = c("Country", "Year"), data = panel_life_data, model = "within")
+
+# summary of all the models
+summary(reg.ols)
+summary(reg.re)
+summary(reg.fe)
+# table for the results without showing year dummy variables
+library(stargazer)
+stargazer(reg.ols, reg.re, reg.fe, type = "text",
+          column.labels = c("OLS", "RE", "FE"), keep.stat = c("rsq", "n"),
+          keep = c("GD", "Sc","to","ad","de"))
+
+
+# test to see if RE model is consistent; it is not, so stick to fe
+phtest(reg.fe, reg.re)
+# test if the fixed effects is better than ols; it is
+pFtest(reg.fe, reg.ols)
+
+# test if we need to use the time fixed effects, we do not need to use time fixed effects
+# create the fixed time model
+reg.fe.time <- plm(lifexp ~ GDP + Schooling + totalexp +adultmort + developing+ factor(Year), data = panel_life_data, model = "within", effect= "twoways")
+plmtest(reg.fe, c("time"), type = ("bp"))
+
+#checking for heteroskedasticity; there is some present
+
+library(lmtest)
+bptest(reg.fe, studentize = FALSE)
+
+# we want to get the robust standard errors
+coeftest(reg.fe, vcovHC, type = "HC0")
+
+# we can then run a regression with the robust standard errors
+
+
+
+
+##############################################################################################################################################
+#Two different regression models on countries that are developing and countries that are not developing 
+
+
+
